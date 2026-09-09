@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Job Wire — LinkedIn Job Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14181f;
+    --ink-soft:#1d232c;
+    --ink-line: rgba(255,255,255,0.12);
+    --paper:#eef1ec;
+    --paper-card:#f8faf6;
+    --line: rgba(20,24,31,0.14);
+    --text:#1b1f24;
+    --text-muted:#5b6570;
+    --gold:#c9862c;
+    --gold-dark:#a86e20;
+    --teal:#1f6f64;
+    --teal-dark:#164f47;
+    --red:#b3452f;
+    --red-bg:#fbeae5;
+    --green-bg:#e9f3e6;
+    --green:#3d7a3a;
+    --shadow: 0 12px 30px rgba(20,24,31,0.10);
+    --shadow-sm: 0 3px 10px rgba(20,24,31,0.06);
+    --ease: cubic-bezier(.4,0,.2,1);
+  }
+
+  *{ margin:0; padding:0; box-sizing:border-box; }
+
+  html,body{ height:100%; }
+
+  body{
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background:var(--paper);
+    color:var(--text);
+    line-height:1.55;
+  }
+
+  a{ color:inherit; }
+
+  ::selection{ background:var(--gold); color:#fff; }
+
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:rgba(20,24,31,0.25); border-radius:6px; }
+  ::-webkit-scrollbar-thumb:hover{ background:rgba(20,24,31,0.4); }
+
+  button, input, select{ font-family:inherit; }
+
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible{
+    outline: 2.5px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  .mono{ font-family:'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace; }
+
+  /* ---------- Shell ---------- */
+  .shell{
+    display:flex;
+    min-height:100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:320px;
+    flex-shrink:0;
+    background:var(--ink);
+    color:#e9ebee;
+    padding:2.25rem 1.75rem;
+    display:flex;
+    flex-direction:column;
+    gap:2.25rem;
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:0.85rem;
+  }
+
+  .brand-mark{
+    width:38px; height:38px;
+    border-radius:9px;
+    background: linear-gradient(155deg, var(--gold) 0%, var(--gold-dark) 100%);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .brand-mark svg{ width:20px; height:20px; color:#14181f; }
+
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.68rem;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:rgba(233,235,238,0.55);
+    margin-bottom:0.15rem;
+  }
+
+  .brand-name{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:1.5rem;
+    letter-spacing:-0.01em;
+  }
+
+  .panel-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.7rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:rgba(233,235,238,0.5);
+    margin-bottom:1.1rem;
+  }
+
+  .field{ margin-bottom:1.1rem; }
+
+  .field label{
+    display:block;
+    font-size:0.78rem;
+    font-weight:600;
+    margin-bottom:0.5rem;
+    color:rgba(233,235,238,0.8);
+  }
+
+  .field input{
+    width:100%;
+    padding:0.75rem 0.85rem;
+    border:1.5px solid rgba(233,235,238,0.16);
+    border-radius:7px;
+    font-size:0.92rem;
+    background:rgba(255,255,255,0.06);
+    color:#f2f3f5;
+    transition: border-color .2s var(--ease), background .2s var(--ease);
+  }
+
+  .field input::placeholder{ color:rgba(233,235,238,0.35); }
+
+  .field input:hover{ border-color:rgba(233,235,238,0.3); }
+
+  .field input:focus{
+    background:rgba(255,255,255,0.1);
+    border-color:var(--gold);
+  }
+
+  .btn{
+    border:none;
+    border-radius:7px;
+    font-size:0.9rem;
+    font-weight:600;
+    cursor:pointer;
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+  }
+
+  .btn-primary{
+    width:100%;
+    padding:0.85rem 1rem;
+    background: var(--gold);
+    color:#191307;
+    display:flex; align-items:center; justify-content:center; gap:0.5rem;
+  }
+
+  .btn-primary:hover{ background:#d6942f; transform:translateY(-1px); box-shadow:0 8px 18px rgba(201,134,44,0.35); }
+  .btn-primary:active{ transform:translateY(0); }
+  .btn-primary:disabled{ opacity:0.6; cursor:not-allowed; transform:none; }
+
+  hr.divider{
+    border:none;
+    height:1px;
+    background: var(--ink-line);
+  }
+
+  .quick-buttons{
+    display:flex;
+    flex-wrap:wrap;
+    gap:0.55rem;
+  }
+
+  .chip{
+    padding:0.5rem 0.8rem;
+    border-radius:100px;
+    background:rgba(255,255,255,0.06);
+    border:1.3px solid rgba(233,235,238,0.16);
+    color:#e9ebee;
+    font-size:0.78rem;
+    font-weight:500;
+  }
+
+  .chip:hover{
+    border-color:var(--gold);
+    background:rgba(201,134,44,0.14);
+    color:#f3d9ae;
+  }
+
+  .sidebar-foot{
+    margin-top:auto;
+    padding-top:1.5rem;
+    border-top:1px solid var(--ink-line);
+    font-size:0.76rem;
+    color:rgba(233,235,238,0.4);
+    line-height:1.5;
+  }
+
+  /* ---------- Main ---------- */
+  .main{
+    flex:1;
+    min-width:0;
+    padding:3rem 3.25rem;
+    overflow-y:auto;
+  }
+
+  .masthead{
+    margin-bottom:2.25rem;
+    padding-bottom:1.75rem;
+    border-bottom:1.5px solid var(--line);
+  }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal-dark);
+    margin-bottom:0.65rem;
+  }
+
+  .headline{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:2.8rem;
+    letter-spacing:-0.015em;
+    line-height:1.05;
+    margin-bottom:0.6rem;
+  }
+
+  .dek{
+    font-size:1.02rem;
+    color:var(--text-muted);
+    max-width:46ch;
+  }
+
+  /* ---------- Loading ---------- */
+  .spinner{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:1.25rem;
+    height:260px;
+  }
+  .spinner.hidden{ display:none; }
+
+  .spinner-ring{
+    width:38px; height:38px;
+    border-radius:50%;
+    border:3px solid rgba(31,111,100,0.15);
+    border-top-color:var(--teal);
+    animation: spin 0.9s linear infinite;
+  }
+
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  #loading-message{ color:var(--text-muted); font-size:0.95rem; }
+
+  /* ---------- Alerts ---------- */
+  .alert{
+    padding:1rem 1.25rem;
+    border-radius:8px;
+    margin-bottom:1.5rem;
+    border-left:3.5px solid;
+    font-size:0.92rem;
+    font-weight:500;
+  }
+  .alert.hidden{ display:none; }
+  .alert-error{ background:var(--red-bg); color:var(--red); border-left-color:var(--red); }
+  .alert-success{ background:var(--green-bg); color:var(--green); border-left-color:var(--green); }
+
+  /* ---------- Ticker / metrics ---------- */
+  .ticker{
+    display:flex;
+    gap:0;
+    background:var(--ink);
+    border-radius:10px;
+    overflow:hidden;
+    margin-bottom:2rem;
+    box-shadow:var(--shadow);
+  }
+  .ticker.hidden{ display:none; }
+
+  .ticker-item{
+    flex:1;
+    padding:1.35rem 1.5rem;
+    border-right:1px solid var(--ink-line);
+  }
+  .ticker-item:last-child{ border-right:none; }
+
+  .ticker-value{
+    display:block;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:1.6rem;
+    color:var(--gold);
+    letter-spacing:-0.01em;
+    margin-bottom:0.2rem;
+  }
+
+  .ticker-label{
+    font-size:0.72rem;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:rgba(233,235,238,0.55);
+  }
+
+  /* ---------- Ledger (tabs) ---------- */
+  .ledger{
+    background:var(--paper-card);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    border:1px solid var(--line);
+    overflow:hidden;
+  }
+  .ledger.hidden{ display:none; }
+
+  .tab-buttons{
+    display:flex;
+    border-bottom:1.5px solid var(--line);
+  }
+
+  .tab-btn{
+    padding:1.1rem 1.5rem;
+    border:none;
+    background:none;
+    cursor:pointer;
+    font-weight:600;
+    font-size:0.88rem;
+    color:var(--text-muted);
+    border-bottom:2.5px solid transparent;
+    margin-bottom:-1.5px;
+    transition: color .18s var(--ease), border-color .18s var(--ease);
+  }
+
+  .tab-btn:hover{ color:var(--teal-dark); }
+
+  .tab-btn.active{
+    color:var(--teal-dark);
+    border-bottom-color:var(--gold);
+  }
+
+  .tab-content{ display:none; padding:1.75rem 2rem 2.25rem; }
+  .tab-content.active{ display:block; animation: fadeIn .25s var(--ease); }
+
+  @keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
+
+  .filter-row{
+    display:flex;
+    align-items:center;
+    gap:1rem;
+    flex-wrap:wrap;
+    margin-bottom:1.5rem;
+  }
+
+  .filter-row label{
+    font-size:0.85rem;
+    font-weight:600;
+    color:var(--text-muted);
+    white-space:nowrap;
+  }
+
+  .filter-row select{
+    padding:0.6rem 0.85rem;
+    border:1.5px solid var(--line);
+    border-radius:7px;
+    font-size:0.87rem;
+    min-width:220px;
+    background:#fff;
+    color:var(--text);
+    cursor:pointer;
+  }
+
+  .filter-row select:hover, .filter-row select:focus{ border-color:var(--teal); }
+
+  .info-bar{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.78rem;
+    color:var(--text-muted);
+    margin-left:auto;
+  }
+
+  /* ---------- Job listing rows ---------- */
+  .jobs-container{ display:flex; flex-direction:column; }
+
+  .job-row{
+    display:flex;
+    align-items:flex-start;
+    gap:1.25rem;
+    padding:1.25rem 0;
+    border-bottom:1px solid var(--line);
+    animation: rise .35s var(--ease) both;
+  }
+
+  .job-row:first-child{ padding-top:0.25rem; }
+
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  .job-ref{
+    flex-shrink:0;
+    font-size:0.75rem;
+    color:var(--text-muted);
+    padding-top:0.2rem;
+    min-width:3.6rem;
+  }
+
+  .job-main{ flex:1; min-width:0; }
+
+  .job-line{
+    display:flex;
+    align-items:baseline;
+    gap:0.6rem;
+    margin-bottom:0.35rem;
+  }
+
+  .job-title{
+    font-weight:700;
+    font-size:1.02rem;
+    color:var(--text);
+  }
+
+  .job-dots{
+    flex:1;
+    border-bottom:1.5px dotted rgba(20,24,31,0.28);
+    transform:translateY(-0.3em);
+  }
+
+  .job-date{
+    flex-shrink:0;
+    font-size:0.78rem;
+    color:var(--text-muted);
+    white-space:nowrap;
+  }
+
+  .job-meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:0.35rem 1.1rem;
+    font-size:0.9rem;
+    color:var(--text-muted);
+  }
+
+  .job-company{ font-weight:600; color:var(--teal-dark); }
+
+  .job-link{
+    flex-shrink:0;
+    align-self:center;
+    text-decoration:none;
+    font-weight:600;
+    font-size:0.83rem;
+    padding:0.55rem 1rem;
+    border:1.5px solid var(--teal);
+    color:var(--teal-dark);
+    border-radius:6px;
+    white-space:nowrap;
+    transition: background .18s var(--ease), color .18s var(--ease);
+  }
+
+  .job-link:hover{ background:var(--teal); color:#fff; }
+
+  /* ---------- Analytics ---------- */
+  .chart-container{
+    position:relative;
+    height:440px;
+  }
+
+  /* ---------- Empty state ---------- */
+  .empty-state{ padding:1rem 0 1.5rem; }
+  .empty-state.hidden{ display:none; }
+
+  .empty-kicker{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+    margin-bottom:0.6rem;
+  }
+
+  .empty-state h2{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:1.7rem;
+    letter-spacing:-0.01em;
+    margin-bottom:2.25rem;
+    max-width:30ch;
+  }
+
+  .feature-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:1.5rem;
+  }
+
+  .feature{
+    background:var(--paper-card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:1.5rem;
+  }
+
+  .feature-mark{
+    display:block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.85rem;
+    font-weight:600;
+    color:var(--gold-dark);
+    margin-bottom:0.9rem;
+  }
+
+  .feature h3{
+    font-size:1.02rem;
+    margin-bottom:0.5rem;
+    font-weight:700;
+  }
+
+  .feature p{
+    font-size:0.88rem;
+    color:var(--text-muted);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1024px){
+    .sidebar{ width:270px; padding:1.75rem 1.35rem; }
+    .main{ padding:2.25rem; }
+    .feature-grid{ grid-template-columns:1fr; }
+  }
+
+  @media (max-width: 768px){
+    .shell{ flex-direction:column; }
+    .sidebar{ width:100%; }
+    .main{ padding:1.75rem 1.25rem; }
+    .headline{ font-size:2.1rem; }
+    .ticker{ flex-direction:column; }
+    .ticker-item{ border-right:none; border-bottom:1px solid var(--ink-line); }
+    .ticker-item:last-child{ border-bottom:none; }
+    .job-row{ flex-wrap:wrap; }
+    .job-link{ margin-left:calc(3.6rem + 1.25rem); }
+    .filter-row select{ width:100%; min-width:unset; }
+    .info-bar{ margin-left:0; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z"/></svg>
+      </span>
+      <div>
+        <p class="brand-eyebrow">LinkedIn search</p>
+        <h1 class="brand-name">Job Wire</h1>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">— File a search —</p>
+      <div class="field">
+        <label for="skill-input">Skill or role</label>
+        <input type="text" id="skill-input" placeholder="e.g. Python, React, DevOps" value="Python">
+      </div>
+      <div class="field">
+        <label for="location-input">City</label>
+        <input type="text" id="location-input" placeholder="e.g. Bangalore, Noida" value="Noida">
+      </div>
+      <button id="search-btn" class="btn btn-primary">Search listings →</button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="panel">
+      <p class="panel-label">— Frequent wires —</p>
+      <div class="quick-buttons">
+        <button class="chip" data-search="Python, Bangalore">Python · Bangalore</button>
+        <button class="chip" data-search="Data Scientist, Noida">Data Scientist · Noida</button>
+        <button class="chip" data-search="React, Gurugram">React · Gurugram</button>
+        <button class="chip" data-search="Java, Delhi">Java · Delhi</button>
+        <button class="chip" data-search="DevOps, Bangalore">DevOps · Bangalore</button>
+      </div>
+    </div>
+
+    <p class="sidebar-foot">Listings are pulled live from LinkedIn each time you search. Apply links open directly on LinkedIn.</p>
+  </aside>
+
+  <main class="main">
+    <header class="masthead">
+      <p class="eyebrow">Live search · Refreshed on demand</p>
+      <h1 class="headline">The Job Wire</h1>
+      <p class="dek">Search current LinkedIn postings by skill and city, weigh them by company, and apply straight through.</p>
+    </header>
+
+    <div id="loading-spinner" class="spinner hidden">
+      <div class="spinner-ring"></div>
+      <p id="loading-message">Searching for jobs…</p>
+    </div>
+
+    <div id="error-alert" class="alert alert-error hidden"></div>
+    <div id="success-alert" class="alert alert-success hidden"></div>
+
+    <div id="metrics-section" class="ticker hidden">
+      <div class="ticker-item">
+        <span class="ticker-value" id="total-jobs">0</span>
+        <span class="ticker-label">Listings found</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-value" id="metric-skill">—</span>
+        <span class="ticker-label">Role searched</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-value" id="metric-location">—</span>
+        <span class="ticker-label">City</span>
+      </div>
+    </div>
+
+    <div id="tabs-section" class="ledger hidden">
+      <div class="tab-buttons">
+        <button class="tab-btn active" data-tab="jobs-list">Listings</button>
+        <button class="tab-btn" data-tab="analytics">By company</button>
+      </div>
+
+      <div id="jobs-list" class="tab-content active">
+        <div class="filter-row">
+          <label for="company-filter">Filter by company</label>
+          <select id="company-filter">
+            <option value="">All companies</option>
+          </select>
+          <span class="info-bar" id="info-bar"></span>
+        </div>
+        <div id="jobs-container" class="jobs-container"></div>
+      </div>
+
+      <div id="analytics" class="tab-content">
+        <div id="chart-container" class="chart-container">
+          <canvas id="companiesChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div id="empty-state" class="empty-state">
+      <p class="empty-kicker">No wire open yet</p>
+      <h2>Run a search to open today's edition</h2>
+
+      <div class="feature-grid">
+        <div class="feature">
+          <span class="feature-mark mono">01</span>
+          <h3>Targeted search</h3>
+          <p>Filter by skill and city to match roles you'd actually take.</p>
+        </div>
+        <div class="feature">
+          <span class="feature-mark mono">02</span>
+          <h3>Company breakdown</h3>
+          <p>See which companies are hiring most for the role right now.</p>
+        </div>
+        <div class="feature">
+          <span class="feature-mark mono">03</span>
+          <h3>Apply direct</h3>
+          <p>Every listing links straight to its LinkedIn application.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Configuration
+  const API_URL = 'http://localhost:8000/jobs';
+  let jobsData = null;
+  let chart = null;
+
+  // DOM Elements
+  const skillInput = document.getElementById('skill-input');
+  const locationInput = document.getElementById('location-input');
+  const searchBtn = document.getElementById('search-btn');
+  const loadingSpinner = document.getElementById('loading-spinner');
+  const errorAlert = document.getElementById('error-alert');
+  const successAlert = document.getElementById('success-alert');
+  const metricsSection = document.getElementById('metrics-section');
+  const tabsSection = document.getElementById('tabs-section');
+  const emptyState = document.getElementById('empty-state');
+  const jobsContainer = document.getElementById('jobs-container');
+  const companyFilter = document.getElementById('company-filter');
+  const infoBar = document.getElementById('info-bar');
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+  const quickButtons = document.querySelectorAll('.chip[data-search]');
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setupEventListeners();
+    loadDefaultSearch();
+  });
+
+  function loadDefaultSearch() {
+    if (skillInput.value && locationInput.value) {
+      setTimeout(() => { performSearch(); }, 300);
+    }
+  }
+
+  function setupEventListeners() {
+    searchBtn.addEventListener('click', performSearch);
+    skillInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+    locationInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+
+    quickButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [skill, location] = btn.dataset.search.split(', ');
+        skillInput.value = skill;
+        locationInput.value = location;
+        performSearch();
+      });
+    });
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    companyFilter.addEventListener('change', () => displayJobList());
+  }
+
+  async function performSearch() {
+    const skill = skillInput.value.trim();
+    const location = locationInput.value.trim();
+
+    if (!skill || !location) {
+      showError('Please enter both a skill and a city.');
+      return;
+    }
+
+    await fetchJobs(skill, location);
+  }
+
+  async function fetchJobs(skill, location) {
+    showLoading(true, `Searching for ${skill} jobs in ${location}…`);
+    clearAlerts();
+
+    try {
+      const response = await fetch(
+        `${API_URL}?skill=${encodeURIComponent(skill)}&location=${encodeURIComponent(location)}`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.totalJobs > 0) {
+        jobsData = data;
+        showSuccess(`Found ${data.totalJobs} listings.`);
+        displayResults();
+      } else {
+        showError(data.message || 'No jobs found. Try a different search.');
+        hideResults();
+      }
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+      showError(`Couldn't reach the job search service: ${error.message}`);
+      hideResults();
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function displayResults() {
+    emptyState.classList.add('hidden');
+    metricsSection.classList.remove('hidden');
+    tabsSection.classList.remove('hidden');
+
+    animateCount(document.getElementById('total-jobs'), jobsData.totalJobs);
+    document.getElementById('metric-skill').textContent = jobsData.searchCriteria.keyword;
+    document.getElementById('metric-location').textContent = jobsData.searchCriteria.location;
+
+    updateCompanyFilter();
+    displayJobList();
+    displayAnalytics();
+
+    if (window.innerWidth <= 768) {
+      metricsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function animateCount(el, target) {
+    const duration = 500;
+    const start = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      el.textContent = Math.round(progress * target).toLocaleString();
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function hideResults() {
+    emptyState.classList.remove('hidden');
+    metricsSection.classList.add('hidden');
+    tabsSection.classList.add('hidden');
+    jobsData = null;
+  }
+
+  function updateCompanyFilter() {
+    const companies = [...new Set(
+      jobsData.jobs.map(job => job.company).filter(company => company && company.length > 0)
+    )].sort();
+
+    companyFilter.innerHTML = '<option value="">All companies (' + companies.length + ')</option>';
+
+    if (companies.length === 0) {
+      companyFilter.innerHTML += '<option disabled>No companies available</option>';
+      return;
+    }
+
+    companies.forEach(company => {
+      const option = document.createElement('option');
+      option.value = company;
+      option.textContent = company;
+      companyFilter.appendChild(option);
+    });
+  }
+
+  function displayJobList() {
+    jobsContainer.innerHTML = '';
+
+    if (!jobsData || !jobsData.jobs || jobsData.jobs.length === 0) {
+      jobsContainer.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem;">No jobs available</p>';
+      return;
+    }
+
+    let filteredJobs = jobsData.jobs;
+    const selectedCompany = companyFilter.value;
+
+    if (selectedCompany) {
+      filteredJobs = filteredJobs.filter(job => job.company === selectedCompany);
+    }
+
+    infoBar.textContent = `Showing ${filteredJobs.length} of ${jobsData.totalJobs}`;
+
+    if (filteredJobs.length === 0) {
+      jobsContainer.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem;">No jobs match this filter</p>';
+      return;
+    }
+
+    filteredJobs.forEach((job, index) => {
+      jobsContainer.appendChild(createJobCard(job, index));
+    });
+  }
+
+  function createJobCard(job, index) {
+    const row = document.createElement('div');
+    row.className = 'job-row';
+    row.style.animationDelay = `${Math.min(index, 20) * 30}ms`;
+
+    const title = job.title || 'Job title not available';
+    const company = job.company || 'Company not specified';
+    const location = job.location || 'Location not specified';
+    const postedDate = job.postedDate || 'Posted recently';
+
+    const ref = document.createElement('span');
+    ref.className = 'job-ref mono';
+    ref.textContent = 'No. ' + String(index + 1).padStart(3, '0');
+
+    const main = document.createElement('div');
+    main.className = 'job-main';
+
+    const line = document.createElement('div');
+    line.className = 'job-line';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'job-title';
+    titleSpan.textContent = title;
+
+    const dots = document.createElement('span');
+    dots.className = 'job-dots';
+
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'job-date mono';
+    dateSpan.textContent = postedDate;
+
+    line.appendChild(titleSpan);
+    line.appendChild(dots);
+    line.appendChild(dateSpan);
+
+    const meta = document.createElement('div');
+    meta.className = 'job-meta';
+
+    const companySpan = document.createElement('span');
+    companySpan.className = 'job-company';
+    companySpan.textContent = company;
+
+    const locationSpan = document.createElement('span');
+    locationSpan.className = 'job-location';
+    locationSpan.textContent = location;
+
+    meta.appendChild(companySpan);
+    meta.appendChild(locationSpan);
+
+    main.appendChild(line);
+    main.appendChild(meta);
+
+    row.appendChild(ref);
+    row.appendChild(main);
+
+    if (job.applyLink && job.applyLink.length > 0) {
+      const link = document.createElement('a');
+      link.href = job.applyLink;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'job-link';
+      link.textContent = 'Apply →';
+      row.appendChild(link);
+    }
+
+    return row;
+  }
+
+  function displayAnalytics() {
+    if (!jobsData || !jobsData.jobs || jobsData.jobs.length === 0) {
+      document.getElementById('chart-container').innerHTML = '<p style="text-align:center;padding:2rem;">No data available for analytics</p>';
+      return;
+    }
+
+    const companyCount = {};
+    jobsData.jobs.forEach(job => {
+      const company = job.company || 'Unknown';
+      companyCount[company] = (companyCount[company] || 0) + 1;
+    });
+
+    const topCompanies = Object.entries(companyCount).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const labels = topCompanies.map(([company]) => company.length > 20 ? company.substring(0, 20) + '…' : company);
+    const data = topCompanies.map(([, count]) => count);
+
+    if (chart) chart.destroy();
+
+    const chartCanvas = document.getElementById('companiesChart');
+    if (!chartCanvas) { console.error('Chart canvas not found'); return; }
+
+    const ctx = chartCanvas.getContext('2d');
+
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Number of jobs',
+          data: data,
+          backgroundColor: '#1f6f64',
+          hoverBackgroundColor: '#c9862c',
+          borderColor: 'rgba(255,255,255,0.4)',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          title: {
+            display: true,
+            text: 'Top companies by job count',
+            font: { size: 13, weight: '600', family: "'IBM Plex Mono', monospace" },
+            color: '#1b1f24',
+            padding: { bottom: 18 }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: { stepSize: 1, font: { size: 11 }, color: '#5b6570' },
+            grid: { color: 'rgba(20,24,31,0.06)' }
+          },
+          y: {
+            ticks: { font: { size: 11 }, color: '#5b6570' },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  function switchTab(tabId) {
+    tabButtons.forEach(btn => btn.classList.remove('active'));
+    tabContents.forEach(content => content.classList.remove('active'));
+
+    const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
+    const activeContent = document.getElementById(tabId);
+
+    if (activeBtn) activeBtn.classList.add('active');
+    if (activeContent) {
+      activeContent.classList.add('active');
+      if (tabId === 'analytics' && chart) {
+        setTimeout(() => chart.resize(), 100);
+      }
+    }
+  }
+
+  function showLoading(show, message = 'Loading…') {
+    if (show) {
+      loadingSpinner.classList.remove('hidden');
+      document.getElementById('loading-message').textContent = message;
+      searchBtn.disabled = true;
+    } else {
+      loadingSpinner.classList.add('hidden');
+      searchBtn.disabled = false;
+    }
+  }
+
+  function showError(message) {
+    errorAlert.textContent = message;
+    errorAlert.classList.remove('hidden');
+    setTimeout(() => errorAlert.classList.add('hidden'), 6000);
+  }
+
+  function showSuccess(message) {
+    successAlert.textContent = message;
+    successAlert.classList.remove('hidden');
+    setTimeout(() => successAlert.classList.add('hidden'), 4000);
+  }
+
+  function clearAlerts() {
+    errorAlert.classList.add('hidden');
+    successAlert.classList.add('hidden');
+  }
+</script>
+</body>
+</html>

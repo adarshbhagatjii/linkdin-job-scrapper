@@ -1,0 +1,91 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+rsvenv/
+env/
+ENV/
+.venv/
+
+# Environment Variables
+.env
+.env.*
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Unit test / coverage reports
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Logs
+*.log
+
+# SQLite Database
+*.db
+*.sqlite3
+
+# PyCharm
+.idea/
+
+# mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Coverage
+coverage.xml
+
+# Temporary files
+*.tmp
+*.temp
+
+# Secrets
+secrets.json
+credentials.json
+
+# FastAPI
+*.pid
+
+# Streamlit
+.streamlit/secrets.toml
+
+# ChromaDB
+chroma_db/
+chroma/
+
+# FAISS
+*.faiss
+
+# PostgreSQL dumps
+*.sql
+
+# Uploaded files
+uploads/
+data/raw/
+
+# Model files
+models/
+checkpoints/
