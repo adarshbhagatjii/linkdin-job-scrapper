@@ -6,6 +6,10 @@ from pydantic import BaseModel
 from typing import Optional, List
 import logging
 import re
+import os
+import shutil
+import tempfile
+import uuid
 from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -30,17 +34,18 @@ RECENCY_TO_TPR = {
     'all': '',
 }
 
+
 def parse_posted_date(raw: str) -> datetime:
     """Parse LinkedIn relative date string to approximate Date"""
     now = datetime.now()
     lower = (raw or '').lower().strip()
-    
+
     if not lower or lower in ['recently posted', 'just now', 'today']:
         return now
-    
+
     match = re.search(r'(\d+)', lower)
     num = int(match.group(1)) if match else 0
-    
+
     if 'minute' in lower or 'hour' in lower:
         return now
     if 'day' in lower:
@@ -48,15 +53,17 @@ def parse_posted_date(raw: str) -> datetime:
     if 'week' in lower:
         return now - timedelta(weeks=num)
     if 'month' in lower:
-        return now - timedelta(days=30*num)
+        return now - timedelta(days=30 * num)
     if 'year' in lower:
-        return now - timedelta(days=365*num)
-    
+        return now - timedelta(days=365 * num)
+
     return now
+
 
 def strip_time(d: datetime) -> datetime:
     """Strip time component from a Date"""
     return datetime(d.year, d.month, d.day)
+
 
 app = FastAPI(title="LinkedIn Job Scraper API")
 
@@ -69,6 +76,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ─── Pydantic Models ──────────────────────────────────────────────────────────
 class JobItem(BaseModel):
     id: str
@@ -79,6 +87,7 @@ class JobItem(BaseModel):
     url: str
     applyLink: str
 
+
 class JobResponse(BaseModel):
     success: bool
     totalJobs: int
@@ -86,99 +95,112 @@ class JobResponse(BaseModel):
     searchCriteria: dict
     message: Optional[str] = None
 
+
+# ─── Driver setup (OS-agnostic) ───────────────────────────────────────────────
+def build_chrome_driver() -> tuple[webdriver.Chrome, str]:
+    """
+    Launch a headless Chrome instance that works on both local machines
+    (macOS/Windows) and Linux deployment containers, with an isolated
+    profile directory so concurrent requests don't collide.
+
+    Returns (driver, user_data_dir) so the caller can clean up afterwards.
+    """
+    chrome_options = Options()
+    chrome_options.add_argument('--headless=new')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--disable-extensions')
+    chrome_options.add_argument('--disable-sync')
+    chrome_options.add_argument('--disable-translate')
+    chrome_options.add_argument('--disable-popup-blocking')
+    chrome_options.add_argument('--disable-notifications')
+    chrome_options.add_argument('--window-size=1920,1080')
+    chrome_options.add_argument('--no-first-run')
+    chrome_options.add_argument('--no-default-browser-check')
+    chrome_options.add_argument(
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+    )
+
+    # Reduce headless-automation fingerprint
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+
+    # Isolated profile dir per request — prevents "user data directory already
+    # in use" crashes when multiple requests run concurrently in production.
+    user_data_dir = tempfile.mkdtemp(prefix=f"chrome-profile-{uuid.uuid4()}-")
+    chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
+
+    # Explicit Chrome binary location, if provided by the deployment
+    # environment (set CHROME_BIN in your Dockerfile / platform config).
+    chrome_bin = os.environ.get("CHROME_BIN") or os.environ.get("GOOGLE_CHROME_BIN")
+    if chrome_bin:
+        chrome_options.binary_location = chrome_bin
+
+    logger.info('Resolving ChromeDriver binary via webdriver_manager...')
+    # Let webdriver_manager pick the correct driver for whatever OS/arch this
+    # process is actually running on. Do NOT hardcode platform-specific
+    # subfolder names (e.g. "chromedriver-mac-arm64") — that only exists on
+    # macOS ARM and breaks on Linux deployment hosts.
+    driver_path = ChromeDriverManager().install()
+
+    if not os.path.isfile(driver_path) or not os.access(driver_path, os.X_OK):
+        os.chmod(driver_path, 0o755)
+
+    logger.info(f'Using ChromeDriver: {driver_path}')
+    service = Service(driver_path)
+
+    try:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+    except Exception:
+        shutil.rmtree(user_data_dir, ignore_errors=True)
+        raise
+
+    # Hide webdriver flag from page JS as an extra stealth measure
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"},
+    )
+
+    driver.set_page_load_timeout(60)
+    driver.implicitly_wait(10)
+    return driver, user_data_dir
+
+
 # ─── Main Scraping Function ──────────────────────────────────────────────────
 def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
     """
-    Scrape jobs from LinkedIn using Selenium
-    Based on Node.js jobMatching.service.js
+    Scrape jobs from LinkedIn using Selenium.
     """
     driver = None
-    
+    user_data_dir = None
+
     try:
         if filters is None:
             filters = {}
-        
+
         search_keyword = skill or 'DATASCIENCE'
         search_location = location or 'Noida'
         recency = filters.get('recency', 'all')
         tpr = RECENCY_TO_TPR.get(recency, '')
         tpr_param = f'&f_TPR={tpr}' if tpr else ''
-        
-        url = f'https://www.linkedin.com/jobs/search?keywords={search_keyword}&location={search_location}&distance=50{tpr_param}&position=1&pageNum=0'
-        
-        logger.info(f'Fetching jobs | keyword="{search_keyword}" location="{search_location}" recency="{recency}" tpr="{tpr or "all-time"}"')
+
+        url = (
+            f'https://www.linkedin.com/jobs/search?keywords={search_keyword}'
+            f'&location={search_location}&distance=50{tpr_param}&position=1&pageNum=0'
+        )
+
+        logger.info(
+            f'Fetching jobs | keyword="{search_keyword}" location="{search_location}" '
+            f'recency="{recency}" tpr="{tpr or "all-time"}"'
+        )
         logger.info(f'URL: {url}')
-        
-        # Configure Chrome options for macOS ARM64
-        chrome_options = Options()
-        chrome_options.add_argument('--headless=new')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-web-resources')
-        chrome_options.add_argument('--disable-extensions')
-        chrome_options.add_argument('--disable-sync')
-        chrome_options.add_argument('--disable-translate')
-        chrome_options.add_argument('--disable-preconnect')
-        chrome_options.add_argument('--disable-popup-blocking')
-        chrome_options.add_argument('--disable-notifications')
-        chrome_options.add_argument('--disable-plugins')
-        chrome_options.add_argument('--disable-media-session-api')
-        chrome_options.add_argument('--no-first-run')
-        chrome_options.add_argument('--no-default-browser-check')
-        chrome_options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36')
-        
-        # Initialize driver with proper architecture detection
+
         logger.info('Launching Chrome browser...')
-        import os
-        
-        # Get the chromedriver path from webdriver-manager
-        driver_path = ChromeDriverManager().install()
-        
-        # The install() might return a wrong path due to webdriver-manager issues
-        # Let's construct the expected path manually
-        driver_dir = os.path.dirname(driver_path)
-        
-        # The actual binary should be in chromedriver-mac-arm64 subdirectory
-        actual_driver_path = os.path.join(driver_dir, 'chromedriver-mac-arm64', 'chromedriver')
-        
-        if not os.path.isfile(actual_driver_path):
-            # Try alternative path
-            actual_driver_path = os.path.join(driver_dir, '..', '..', 'chromedriver')
-        
-        if not os.path.isfile(actual_driver_path) or not os.access(actual_driver_path, os.X_OK):
-            # Fallback: search for chromedriver in the directory tree
-            for root, dirs, files in os.walk(os.path.dirname(driver_dir)):
-                if 'chromedriver' in files:
-                    candidate = os.path.join(root, 'chromedriver')
-                    # Check if it's the binary (not a text file like THIRD_PARTY_NOTICES.chromedriver)
-                    try:
-                        with open(candidate, 'rb') as f:
-                            header = f.read(4)
-                            # ELF or Mach-O binary header
-                            if header.startswith(b'\x7fELF') or header.startswith(b'\xcf\xfa\xed\xfe') or header.startswith(b'\xca\xfe\xba\xbe'):
-                                actual_driver_path = candidate
-                                break
-                    except:
-                        pass
-        
-        if not os.path.isfile(actual_driver_path):
-            raise FileNotFoundError(f'ChromeDriver binary not found. Expected at: {actual_driver_path}')
-        
-        logger.info(f'Using ChromeDriver: {actual_driver_path}')
-        
-        # Ensure the binary is executable (webdriver-manager sometimes skips this on macOS)
-        if not os.access(actual_driver_path, os.X_OK):
-            logger.info('Fixing chromedriver permissions...')
-            os.chmod(actual_driver_path, 0o755)
-        
-        service = Service(actual_driver_path)
-        
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        driver.set_page_load_timeout(60)
-        driver.implicitly_wait(10)
-        
+        driver, user_data_dir = build_chrome_driver()
+
         # Navigate to URL with retry logic
         logger.info('Navigating to LinkedIn jobs page...')
         max_retries = 3
@@ -191,26 +213,25 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                 logger.warning(f'Navigation attempt {attempt + 1} failed: {e}')
                 if attempt == max_retries - 1:
                     raise
-        
-        # Wait for page to load
+
         time.sleep(3)
-        
-        # Wait for job cards
+
         logger.info('Waiting for job cards to load...')
         try:
             WebDriverWait(driver, 10).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.job-search-card, .base-search-card'))
+                EC.presence_of_all_elements_located(
+                    (By.CSS_SELECTOR, '.job-search-card, .base-search-card')
+                )
             )
             logger.info('Job cards found!')
         except Exception as e:
             logger.warning(f'Job cards timeout: {e}')
-        
-        # Extract job data using JavaScript
+
         logger.info('Extracting job data...')
         jobs = driver.execute_script('''
             const jobCards = document.querySelectorAll('.job-search-card, .base-search-card');
             const results = [];
-            
+
             jobCards.forEach((card) => {
                 const titleSelectors = [
                     '.job-search-card__title',
@@ -225,7 +246,7 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                         break;
                     }
                 }
-                
+
                 const companySelectors = [
                     '.job-search-card__company-name',
                     '.base-search-card__subtitle',
@@ -239,7 +260,7 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                         break;
                     }
                 }
-                
+
                 const locationSelectors = [
                     '.job-search-card__location',
                     '.base-search-card__location',
@@ -253,7 +274,7 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                         break;
                     }
                 }
-                
+
                 const linkEl = card.querySelector('a.base-card__full-link, a[href*="/jobs/view/"]');
                 let link = '';
                 if (linkEl) {
@@ -263,7 +284,7 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                         link = href.startsWith('http') ? href : `https://www.linkedin.com${href}`;
                     }
                 }
-                
+
                 const dateSelectors = [
                     '.job-search-card__listdate',
                     '.job-search-card__listdate--new',
@@ -277,23 +298,26 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                         break;
                     }
                 }
-                
+
                 if (title && company) {
                     results.push({ title, company, location, postedDate, link });
                 }
             });
-            
+
             return results;
         ''')
-        
+
         logger.info(f'Extracted {len(jobs)} jobs from page')
-        
-        # Close driver
+
         driver.quit()
         driver = None
-        
+        if user_data_dir:
+            shutil.rmtree(user_data_dir, ignore_errors=True)
+            user_data_dir = None
+
         if not jobs:
-            logger.warning('No jobs found - LinkedIn may have changed HTML or blocked request')
+            logger.warning('No jobs found - LinkedIn may have changed HTML, blocked the request, '
+                            'or is challenging this IP (common on cloud/datacenter IPs).')
             return {
                 'success': False,
                 'totalJobs': 0,
@@ -303,19 +327,18 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                     'location': search_location,
                     'recency': recency
                 },
-                'message': 'No jobs found. LinkedIn may have changed their HTML structure or blocked the request.'
+                'message': 'No jobs found. LinkedIn may have changed their HTML structure, '
+                            'blocked the request, or challenged this server\'s IP address.'
             }
-        
-        # Sort: exact location match first
+
         search_location_lower = search_location.lower()
-        
+
         def sort_key(j):
             location_match = (j['location'] or '').lower().find(search_location_lower) >= 0
             return (not location_match, '')
-        
+
         sorted_jobs = sorted(jobs, key=sort_key)
-        
-        # Format jobs
+
         formatted_jobs = []
         for idx, job in enumerate(sorted_jobs):
             location_match = (job['location'] or '').lower().find(search_location_lower) >= 0
@@ -330,16 +353,15 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                 'applyLink': job['link'],
                 'locationMatch': location_match
             })
-        
-        # Apply date-range filter if provided
+
         date_from = filters.get('dateFrom')
         date_to = filters.get('dateTo')
-        
+
         if date_from or date_to:
             try:
                 from_date = strip_time(datetime.fromisoformat(date_from)) if date_from else None
                 to_date = datetime.fromisoformat(date_to) + timedelta(hours=24) if date_to else None
-                
+
                 filtered_jobs = []
                 for job in formatted_jobs:
                     posted = parse_posted_date(job['postedDate'])
@@ -348,14 +370,17 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
                     if to_date and posted > to_date:
                         continue
                     filtered_jobs.append(job)
-                
+
                 formatted_jobs = filtered_jobs
-                logger.info(f'Date-range filter applied [{date_from or "—"} → {date_to or "today"}]: {len(formatted_jobs)} jobs remaining')
+                logger.info(
+                    f'Date-range filter applied [{date_from or "—"} → {date_to or "today"}]: '
+                    f'{len(formatted_jobs)} jobs remaining'
+                )
             except Exception as e:
                 logger.warning(f'Date filter error: {e}')
-        
+
         logger.info(f'Successfully scraped {len(formatted_jobs)} jobs')
-        
+
         return {
             'success': True,
             'jobs': formatted_jobs,
@@ -369,15 +394,9 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
             },
             'source': 'LinkedIn (via Selenium)'
         }
-    
+
     except Exception as e:
         logger.error(f'Error fetching from LinkedIn: {str(e)}', exc_info=True)
-        if driver:
-            try:
-                driver.quit()
-            except:
-                pass
-        
         return {
             'success': False,
             'totalJobs': 0,
@@ -389,20 +408,23 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
             'message': f'Failed to fetch jobs from LinkedIn: {str(e)}'
         }
 
-# ─── FastAPI Endpoints ──────────────────────────────────────────────────────
+    finally:
+        # Always clean up, even on exceptions raised mid-scrape.
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        if user_data_dir:
+            shutil.rmtree(user_data_dir, ignore_errors=True)
 
-# @app.get("/")
-# async def root():
-#     """Root endpoint with API information"""
-#     return {
-#         "message": "LinkedIn Job Scraper API",
-#         "version": "2.0.0",
-#         "usage": "GET /jobs?skill=python&location=bangalore"
-#     }
+
+# ─── FastAPI Endpoints ──────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 def home():
     """Serve the frontend chatbot UI."""
     return FileResponse("index.html")
+
 
 @app.get("/jobs", response_model=JobResponse)
 async def get_jobs(
@@ -416,22 +438,22 @@ async def get_jobs(
     try:
         if not skill or len(skill.strip()) == 0:
             raise HTTPException(status_code=400, detail="Skill parameter is required")
-        
+
         if not location or len(location.strip()) == 0:
             raise HTTPException(status_code=400, detail="Location parameter is required")
-        
+
         skill = skill.strip()
         location = location.strip()
-        
+
         filters = {
             'recency': recency or 'all',
             'dateFrom': dateFrom,
             'dateTo': dateTo
         }
-        
+
         result = scrape_linkedin_jobs(skill, location, filters)
         return JobResponse(**result)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -443,6 +465,7 @@ async def get_jobs(
             searchCriteria={"skill": skill, "location": location},
             message=f"Failed to fetch jobs: {str(e)}"
         )
+
 
 @app.get("/health")
 async def health_check():
