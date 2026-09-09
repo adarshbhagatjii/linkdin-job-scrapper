@@ -105,6 +105,28 @@ class JobResponse(BaseModel):
     message: Optional[str] = None
 
 
+# ─── Chrome binary detection ──────────────────────────────────────────────────
+def find_chrome_binary() -> Optional[str]:
+    """Locate an installed Chrome/Chromium binary. Returns None if not found —
+    webdriver_manager only installs the DRIVER, never the browser itself."""
+    candidates = [
+        os.environ.get("CHROME_BIN"),
+        os.environ.get("GOOGLE_CHROME_BIN"),
+        shutil.which("google-chrome"),
+        shutil.which("google-chrome-stable"),
+        shutil.which("chromium"),
+        shutil.which("chromium-browser"),
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+    ]
+    for path in candidates:
+        if path and os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
 # ─── Driver setup (OS-agnostic) ───────────────────────────────────────────────
 _cached_driver_path: Optional[str] = None
 
@@ -116,7 +138,10 @@ def get_chromedriver_path() -> str:
     if _cached_driver_path and os.path.isfile(_cached_driver_path):
         return _cached_driver_path
 
-    wdm_cache_dir = os.path.join(tempfile.gettempdir(), '.wdm')
+    # DriverCacheManager appends its own ".wdm" subfolder to root_dir, so pass
+    # the plain temp dir here (not a path already ending in .wdm) to avoid
+    # nested /tmp/.wdm/.wdm/... paths.
+    wdm_cache_dir = tempfile.gettempdir()
     os.makedirs(wdm_cache_dir, exist_ok=True)
 
     logger.info('Resolving ChromeDriver binary via webdriver_manager...')
@@ -168,11 +193,25 @@ def build_chrome_driver() -> tuple[webdriver.Chrome, str]:
     chrome_options.add_argument('--disable-crash-reporter')
     chrome_options.add_argument('--disable-breakpad')
 
-    # Explicit Chrome binary location, if provided by the deployment
-    # environment (set CHROME_BIN in your Dockerfile / platform config).
-    chrome_bin = os.environ.get("CHROME_BIN") or os.environ.get("GOOGLE_CHROME_BIN")
-    if chrome_bin:
-        chrome_options.binary_location = chrome_bin
+    # Locate the Chrome/Chromium binary. webdriver_manager only installs the
+    # DRIVER — the browser itself must already be present on the host (via
+    # the Dockerfile's apt-get install, or a platform buildpack). Fail fast
+    # with a clear message instead of letting Selenium surface a cryptic
+    # "exit code 127" when chromedriver can't find a browser to launch.
+    chrome_bin = find_chrome_binary()
+    if not chrome_bin:
+        raise RuntimeError(
+            "No Chrome/Chromium binary found on this host. webdriver_manager "
+            "only installs ChromeDriver, not the browser itself. If deploying "
+            "via Docker, confirm your build is actually using the Dockerfile "
+            "that runs 'apt-get install google-chrome-stable' and sets "
+            "CHROME_BIN=/usr/bin/google-chrome — some platforms silently fall "
+            "back to a native/buildpack build unless Docker is explicitly "
+            "selected. If not using Docker, you must add a build step or "
+            "platform-native buildpack that installs a Chrome/Chromium binary."
+        )
+    chrome_options.binary_location = chrome_bin
+    logger.info(f'Using Chrome binary: {chrome_bin}')
 
     # Resolved once per process (cached), with its cache dir forced into
     # /tmp since the sandbox's home directory is read-only.
@@ -502,3 +541,26 @@ async def get_jobs(
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/debug-chrome")
+async def debug_chrome():
+    """Diagnostic: confirms whether a Chrome/Chromium binary is actually
+    installed on this host, without running a full scrape."""
+    chrome_bin = find_chrome_binary()
+    result = {
+        "chrome_found": chrome_bin is not None,
+        "chrome_path": chrome_bin,
+        "CHROME_BIN_env": os.environ.get("CHROME_BIN"),
+        "HOME_env": os.environ.get("HOME"),
+    }
+    if chrome_bin:
+        try:
+            import subprocess
+            version_out = subprocess.run(
+                [chrome_bin, "--version"], capture_output=True, text=True, timeout=10
+            )
+            result["chrome_version"] = version_out.stdout.strip() or version_out.stderr.strip()
+        except Exception as e:
+            result["chrome_version_error"] = str(e)
+    return result
