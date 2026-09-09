@@ -254,7 +254,8 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
         search_keyword = skill or 'DATASCIENCE'
         search_location = location or 'Noida'
         recency = filters.get('recency', 'all')
-        tpr = RECENCY_TO_TPR.get(recency, '')
+        tpr = 86400
+        print(f"Recency filter: {recency} -> f_TPR={tpr}")
         tpr_param = f'&f_TPR={tpr}' if tpr else ''
 
         url = (
