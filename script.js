@@ -1,5 +1,5 @@
 // Configuration
-const API_URL = 'http://localhost:8000/jobs';
+const API_URL = '/jobs';
 let jobsData = null;
 let chart = null;
 
@@ -168,7 +168,7 @@ function updateCompanyFilter() {
             .map(job => job.company)
             .filter(company => company && company.length > 0)
     )].sort();
-    
+
     companyFilter.innerHTML = '<option value="">All Companies (' + companies.length + ')</option>';
 
     if (companies.length === 0) {
@@ -295,7 +295,7 @@ function displayAnalytics() {
 
     // Create new chart
     const chartCanvas = document.getElementById('companiesChart');
-    
+
     if (!chartCanvas) {
         console.error('Chart canvas not found');
         return;
