@@ -7,6 +7,14 @@ from typing import Optional, List
 import logging
 import re
 import os
+
+# Many deployment sandboxes give the container a read-only home directory
+# (e.g. /home/sbx_user1051) while /tmp stays writable. Chrome, webdriver_manager,
+# and other libraries default to writing config/cache under $HOME regardless
+# of --user-data-dir, so override HOME globally BEFORE anything else runs.
+os.environ.setdefault('HOME', '/tmp')
+os.makedirs(os.environ['HOME'], exist_ok=True)
+
 import shutil
 import tempfile
 import uuid
@@ -18,6 +26,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.driver_cache import DriverCacheManager
 import time
 
 # Configure logging
@@ -109,10 +118,10 @@ def get_chromedriver_path() -> str:
 
     wdm_cache_dir = os.path.join(tempfile.gettempdir(), '.wdm')
     os.makedirs(wdm_cache_dir, exist_ok=True)
-    os.environ['WDM_CACHE_PATH'] = wdm_cache_dir
 
     logger.info('Resolving ChromeDriver binary via webdriver_manager...')
-    _cached_driver_path = ChromeDriverManager().install()
+    cache_manager = DriverCacheManager(root_dir=wdm_cache_dir)
+    _cached_driver_path = ChromeDriverManager(cache_manager=cache_manager).install()
     logger.info(f'Using ChromeDriver: {_cached_driver_path}')
     return _cached_driver_path
 
@@ -152,6 +161,12 @@ def build_chrome_driver() -> tuple[webdriver.Chrome, str]:
     # in use" crashes when multiple requests run concurrently in production.
     user_data_dir = tempfile.mkdtemp(prefix=f"chrome-profile-{uuid.uuid4()}-")
     chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
+    # Chrome writes disk cache and crash dumps to separate locations from
+    # --user-data-dir; pin those into /tmp too so nothing falls back to a
+    # read-only $HOME.
+    chrome_options.add_argument(f'--disk-cache-dir={tempfile.mkdtemp(prefix="chrome-cache-")}')
+    chrome_options.add_argument('--disable-crash-reporter')
+    chrome_options.add_argument('--disable-breakpad')
 
     # Explicit Chrome binary location, if provided by the deployment
     # environment (set CHROME_BIN in your Dockerfile / platform config).
@@ -159,25 +174,13 @@ def build_chrome_driver() -> tuple[webdriver.Chrome, str]:
     if chrome_bin:
         chrome_options.binary_location = chrome_bin
 
-    logger.info('Resolving ChromeDriver binary via webdriver_manager...')
-    # Many deployment sandboxes mount the home directory (~/.wdm, the default
-    # webdriver_manager cache location) as read-only, while /tmp stays
-    # writable. Redirect the cache there explicitly to avoid
-    # "Read-only file system: '/home/...'" errors.
-    wdm_cache_dir = os.path.join(tempfile.gettempdir(), '.wdm')
-    os.makedirs(wdm_cache_dir, exist_ok=True)
-    os.environ['WDM_CACHE_PATH'] = wdm_cache_dir
+    # Resolved once per process (cached), with its cache dir forced into
+    # /tmp since the sandbox's home directory is read-only.
+    driver_path = get_chromedriver_path()
 
-    # Let webdriver_manager pick the correct driver for whatever OS/arch this
-    # process is actually running on. Do NOT hardcode platform-specific
-    # subfolder names (e.g. "chromedriver-mac-arm64") — that only exists on
-    # macOS ARM and breaks on Linux deployment hosts.
-    driver_path = ChromeDriverManager().install()
-
-    if not os.path.isfile(driver_path) or not os.access(driver_path, os.X_OK):
+    if not os.access(driver_path, os.X_OK):
         os.chmod(driver_path, 0o755)
 
-    logger.info(f'Using ChromeDriver: {driver_path}')
     service = Service(driver_path)
 
     try:
