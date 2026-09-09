@@ -97,6 +97,26 @@ class JobResponse(BaseModel):
 
 
 # ─── Driver setup (OS-agnostic) ───────────────────────────────────────────────
+_cached_driver_path: Optional[str] = None
+
+
+def get_chromedriver_path() -> str:
+    """Resolve the ChromeDriver binary path once per process and reuse it,
+    instead of re-downloading/re-resolving on every request."""
+    global _cached_driver_path
+    if _cached_driver_path and os.path.isfile(_cached_driver_path):
+        return _cached_driver_path
+
+    wdm_cache_dir = os.path.join(tempfile.gettempdir(), '.wdm')
+    os.makedirs(wdm_cache_dir, exist_ok=True)
+    os.environ['WDM_CACHE_PATH'] = wdm_cache_dir
+
+    logger.info('Resolving ChromeDriver binary via webdriver_manager...')
+    _cached_driver_path = ChromeDriverManager().install()
+    logger.info(f'Using ChromeDriver: {_cached_driver_path}')
+    return _cached_driver_path
+
+
 def build_chrome_driver() -> tuple[webdriver.Chrome, str]:
     """
     Launch a headless Chrome instance that works on both local machines
@@ -140,6 +160,14 @@ def build_chrome_driver() -> tuple[webdriver.Chrome, str]:
         chrome_options.binary_location = chrome_bin
 
     logger.info('Resolving ChromeDriver binary via webdriver_manager...')
+    # Many deployment sandboxes mount the home directory (~/.wdm, the default
+    # webdriver_manager cache location) as read-only, while /tmp stays
+    # writable. Redirect the cache there explicitly to avoid
+    # "Read-only file system: '/home/...'" errors.
+    wdm_cache_dir = os.path.join(tempfile.gettempdir(), '.wdm')
+    os.makedirs(wdm_cache_dir, exist_ok=True)
+    os.environ['WDM_CACHE_PATH'] = wdm_cache_dir
+
     # Let webdriver_manager pick the correct driver for whatever OS/arch this
     # process is actually running on. Do NOT hardcode platform-specific
     # subfolder names (e.g. "chromedriver-mac-arm64") — that only exists on
