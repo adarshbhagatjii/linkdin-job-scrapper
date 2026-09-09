@@ -1,6 +1,7 @@
 # app.py
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import logging
@@ -166,6 +167,12 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
             raise FileNotFoundError(f'ChromeDriver binary not found. Expected at: {actual_driver_path}')
         
         logger.info(f'Using ChromeDriver: {actual_driver_path}')
+        
+        # Ensure the binary is executable (webdriver-manager sometimes skips this on macOS)
+        if not os.access(actual_driver_path, os.X_OK):
+            logger.info('Fixing chromedriver permissions...')
+            os.chmod(actual_driver_path, 0o755)
+        
         service = Service(actual_driver_path)
         
         driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -384,14 +391,18 @@ def scrape_linkedin_jobs(skill: str, location: str, filters: dict = None):
 
 # ─── FastAPI Endpoints ──────────────────────────────────────────────────────
 
-@app.get("/")
-async def root():
-    """Root endpoint with API information"""
-    return {
-        "message": "LinkedIn Job Scraper API",
-        "version": "2.0.0",
-        "usage": "GET /jobs?skill=python&location=bangalore"
-    }
+# @app.get("/")
+# async def root():
+#     """Root endpoint with API information"""
+#     return {
+#         "message": "LinkedIn Job Scraper API",
+#         "version": "2.0.0",
+#         "usage": "GET /jobs?skill=python&location=bangalore"
+#     }
+@app.get("/", include_in_schema=False)
+def home():
+    """Serve the frontend chatbot UI."""
+    return FileResponse("index.html")
 
 @app.get("/jobs", response_model=JobResponse)
 async def get_jobs(
