@@ -704,14 +704,8 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
-    loadDefaultSearch();
   });
 
-  function loadDefaultSearch() {
-    if (skillInput.value && locationInput.value) {
-      setTimeout(() => { performSearch(); }, 300);
-    }
-  }
 
   function setupEventListeners() {
     searchBtn.addEventListener('click', performSearch);
